@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -64,22 +64,44 @@ namespace FSO.Common
             }
         }
 
-        public void Save()
+        protected virtual object GetSaveValue(string name, object value) => value;
+
+        public void Save() => TrySave(out _);
+
+        public bool TrySave(out string error)
         {
+            string temporary = null;
             try
             {
-                using (var stream = new StreamWriter(File.Open(ActivePath, FileMode.Create, FileAccess.Write)))
+                var destination = Path.GetFullPath(ActivePath);
+                temporary = Path.Combine(Path.GetDirectoryName(destination), Path.GetRandomFileName());
+                using (var stream = new StreamWriter(File.Open(temporary, FileMode.CreateNew, FileAccess.Write)))
                 {
                     stream.WriteLine($"# {HeadingComment}");
-                    var props = this.GetType().GetProperties();
-                    foreach (var prop in props)
+                    foreach (var prop in GetType().GetProperties())
                     {
                         if (prop.Name == "Default" || prop.Name == "DefaultValues") continue;
-                        stream.WriteLine(prop.Name + "=" + Convert.ToString(prop.GetValue(this), CultureInfo.InvariantCulture));
+                        stream.WriteLine(prop.Name + "=" + Convert.ToString(GetSaveValue(prop.Name, prop.GetValue(this)), CultureInfo.InvariantCulture));
                     }
                 }
+                File.Move(temporary, destination, true);
+                error = null;
+                return true;
             }
-            catch (Exception) { }
+            catch (Exception e)
+            {
+                error = e.GetBaseException().Message;
+                return false;
+            }
+            finally
+            {
+                if (temporary != null)
+                {
+                    try { File.Delete(temporary); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using FSO.Common;
+using FSO.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -39,6 +39,21 @@ namespace FSO.Client
                 }
                 return defaultInstance;
             }
+        }
+
+        // A field deliberately stays outside IniConfig's property-based schema.
+        public (int Width, int Height, bool Windowed)? PendingDisplayOptions;
+
+        protected override object GetSaveValue(string name, object value)
+        {
+            if (PendingDisplayOptions is not { } display) return value;
+            return name switch
+            {
+                nameof(GraphicsWidth) => display.Width,
+                nameof(GraphicsHeight) => display.Height,
+                nameof(Windowed) => display.Windowed,
+                _ => value
+            };
         }
 
         private static string GenerateGUID()
