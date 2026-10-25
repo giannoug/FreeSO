@@ -214,8 +214,7 @@ namespace FSO.Content.TS1
             //save to a new user iff
             var path = Path.Combine(UserPath, "Characters/");
             var filename = Path.Combine(path, "User" + (NextSim++).ToString().PadLeft(5, '0') + ".iff");
-            using (var stream = new FileStream(filename, FileMode.Create))
-                obj.Resource.MainIff.Write(stream);
+            WriteIff(filename, obj.Resource.MainIff);
 
             objs.Entries[obj.OBJ.GUID] = new GameObjectReference(objs)
             {
@@ -340,25 +339,41 @@ namespace FSO.Content.TS1
                     var obj = ContentManager.WorldObjects.Get(ava);
                     if (obj != null)
                     {
-                        using (var stream = new FileStream(obj.Resource.Name, FileMode.Create))
-                            obj.Resource.MainIff.Write(stream);
+                        WriteIff(obj.Resource.Name, obj.Resource.MainIff);
                     }
                 }
-                DirtyAvatars.Clear();
             }
 
-            using (var stream = new FileStream(Path.Combine(UserPath, "Neighborhood.iff"), FileMode.Create, FileAccess.Write, FileShare.None))
-                MainResource.Write(stream);
+            WriteIff(Path.Combine(UserPath, "Neighborhood.iff"), MainResource);
+            if (withSims) DirtyAvatars.Clear();
 
             return true;
         }
 
         public bool SaveHouse(int houseID, IffFile file)
         {
-            using (var stream = new FileStream(GetHousePath(houseID), FileMode.Create, FileAccess.Write, FileShare.None))
-                file.Write(stream);
+            WriteIff(GetHousePath(houseID), file);
 
             return true;
+        }
+
+        // Protects one file; neighborhood saves span independently replaced files.
+        private static void WriteIff(string path, IffFile file)
+        {
+            var destination = Path.GetFullPath(path);
+            var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    file.Write(stream);
+                File.Move(temporary, destination, true);
+            }
+            finally
+            {
+                try { File.Delete(temporary); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
         }
 
         public IffFile GetHouse(int id)
